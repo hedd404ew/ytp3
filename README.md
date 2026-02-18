@@ -1,4 +1,4 @@
-# YTP3Downloader
+# YTP3
 
 ![Python Version](https://img.shields.io/badge/python-3.8+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -30,8 +30,8 @@ A modern, feature-rich YouTube downloader with both GUI and CLI interfaces. Down
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/ytp3downloader.git
-   cd ytp3downloader
+   git clone https://github.com/hedd404ew/ytp3.git
+   cd ytp3
    ```
 
 2. **Create virtual environment**
@@ -110,7 +110,7 @@ Options:
 ## Project Structure
 
 ```
-ytp3downloader/
+ytp3/
 ├── ytp3/
 │   ├── __init__.py              # Package initialization
 │   ├── core/
@@ -136,8 +136,8 @@ ytp3downloader/
 ### GUI Configuration
 
 Settings are automatically saved to:
-- **Windows**: `%APPDATA%\YTP3Downloader\config.json`
-- **Linux/macOS**: `~/.config/YTP3Downloader/config.json`
+- **Windows**: `%APPDATA%\YTP3\config.json`
+- **Linux/macOS**: `~/.config/YTP3/config.json`
 - **Portable**: `ytp3_config.json` (in current directory)
 
 ### Manual Configuration
@@ -262,9 +262,9 @@ This project is licensed under the MIT License - see LICENSE file for details.
 ## Support
 
 For issues, questions, or suggestions:
-- Open an [Issue](https://github.com/yourusername/ytp3downloader/issues)
-- Check [Discussions](https://github.com/yourusername/ytp3downloader/discussions)
-- See [Wiki](https://github.com/yourusername/ytp3downloader/wiki)
+- Open an [Issue](https://github.com/hedd404ew/ytp3/issues)
+- Check [Discussions](https://github.com/hedd404ew/ytp3/discussions)
+- See [Wiki](https://github.com/hedd404ew/ytp3/wiki)
 
 ## Changelog
 

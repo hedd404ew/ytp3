@@ -1,4 +1,4 @@
-"""Setup configuration for YTP3Downloader package."""
+"""Setup configuration for YTP3 package."""
 
 from setuptools import setup, find_packages
 
@@ -6,13 +6,13 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="ytp3downloader",
+    name="ytp3",
     version="3.0.0",
     author="YTP3 Development Team",
     description="Modern YouTube downloader with GUI and CLI support",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/ytp3downloader",
+    url="https://github.com/hedd404ew/ytp3",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",

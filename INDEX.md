@@ -46,7 +46,7 @@
 ## 📦 Project Structure
 
 ```
-ytp3downloader/
+ytp3/
 ├── 📖 README.md                  ← Main documentation
 ├── 🚀 QUICKSTART.md              ← Quick reference
 ├── 👥 CONTRIBUTING.md            ← How to help

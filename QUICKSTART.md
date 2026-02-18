@@ -3,7 +3,7 @@
 ## Project Structure at a Glance
 
 ```
-ytp3downloader/
+ytp3/
 │
 ├── 📄 ytp3_main.py              ← Run this to start
 ├── 📄 setup.py                  ← For PyPI package

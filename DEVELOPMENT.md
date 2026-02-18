@@ -1,8 +1,8 @@
-# YTP3Downloader Development
+# YTP3 Development
 
 ## Architecture Overview
 
-The refactored YTP3Downloader follows a modular, layered architecture:
+The refactored YTP3 follows a modular, layered architecture:
 
 ### Core Layer (`ytp3/core/`)
 

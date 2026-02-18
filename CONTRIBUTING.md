@@ -1,4 +1,4 @@
-# Contributing to YTP3Downloader
+# Contributing to YTP3
 
 Thank you for your interest in contributing! This document provides guidelines for contributing.
 
@@ -43,7 +43,7 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ```bash
 git clone <your-fork>
-cd ytp3downloader
+cd ytp3
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

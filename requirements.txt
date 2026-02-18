@@ -1,4 +1,4 @@
-"""Requirements for YTP3Downloader."""
+"""Requirements for YTP3."""
 
 # Core
 yt-dlp>=2023.11.16
