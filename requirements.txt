@@ -1,0 +1,13 @@
+"""Requirements for YTP3Downloader."""
+
+# Core
+yt-dlp>=2023.11.16
+requests>=2.31.0
+mutagen>=1.46.0
+
+# GUI
+customtkinter>=5.2.0
+Pillow>=10.0.0
+
+# Optional but recommended
+python-dotenv>=1.0.0
