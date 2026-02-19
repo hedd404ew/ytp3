@@ -7,15 +7,17 @@ A modern, feature-rich YouTube downloader with both GUI and CLI interfaces. Down
 
 ## Features
 
-- 🎥 **Video & Audio Downloads** - Download videos or extract audio
+- 🎥 **Video & Audio Downloads** - Download videos or extract audio with robust 5-layer audio-video merging
 - 📋 **Playlist Support** - Handle entire playlists with batch operations
+- 🎞️ **Quality Selection** - Choose between best, high (1080p), medium (720p), or low (480p) quality
+- 🔄 **5-Layer Fallback System** - Automatic format degradation with 20 total attempts
+- 🛡️ **Comprehensive Error Logging** - [ATTEMPT X] tracking with detailed error reasons
 - 🔄 **Bypass Strategies** - Multiple fallback strategies (Standard, Android, iOS, TV)
 - 🖥️ **Dual Interface** - Professional GUI and powerful CLI
-- 📝 **Metadata & Thumbnails** - Embed metadata and thumbnails automatically
+- 📝 **Metadata Embedding** - Automatically embed metadata (title, description, etc.)
 - 🌐 **Authentication** - Browser cookie integration and custom cookie files
 - 🎬 **Post-Processing** - FFmpeg integration for format conversion
 - ⚡ **Concurrent Downloads** - Multi-threaded downloads (configurable)
-- 🛡️ **Geo-Bypass** - Geographic restriction bypass capabilities
 - 💾 **Portable Config** - Store settings locally or in system directories
 
 ## Installation
@@ -83,13 +85,19 @@ python ytp3_main.py -o ~/Downloads "https://www.youtube.com/playlist?list=..."
 
 # Advanced options
 python ytp3_main.py -a --subs --geo --cookies-browser chrome "https://www.youtube.com/watch?v=..."
+
+# Quality selection (best/high/medium/low)
+python ytp3_main.py -q high "https://www.youtube.com/watch?v=..."
+
+# Force FFmpeg merge for reliability
+python ytp3_main.py --force-ffmpeg "https://www.youtube.com/watch?v=..."
 ```
 
 ### CLI Options
 
 ```
-usage: ytp3_main.py [-h] [-a] [-f FORMAT] [-o OUTPUT] [--no-meta] [--no-thumb] 
-                    [--subs] [--geo] [--reverse] [--cookies-browser COOKIES_BROWSER] 
+usage: ytp3_main.py [-h] [-a] [-f FORMAT] [-q QUALITY] [-o OUTPUT] [--no-meta] [--no-thumb] 
+                    [--subs] [--geo] [--reverse] [--force-ffmpeg] [--cookies-browser COOKIES_BROWSER] 
                     [--cookies-file COOKIES_FILE] 
                     [url]
 
@@ -97,12 +105,15 @@ Options:
   -h, --help                     Show this help message
   -a, --audio                    Download audio only
   -f, --format FORMAT            Output format (mp4, mkv, webm, mp3, m4a, wav)
+  -q, --quality QUALITY          Video quality: best/high/medium/low (default: best)
+                                 best: any quality, high: max 1080p, medium: max 720p, low: max 480p
   -o, --output OUTPUT            Output directory
   --no-meta                      Don't embed metadata
   --no-thumb                     Don't embed thumbnail
   --subs                         Download subtitles
   --geo                          Enable geo-bypass
   --reverse                       Reverse playlist order
+  --force-ffmpeg                 Force FFmpeg concat postprocessor for robust stream merging
   --cookies-browser BROWSER      Extract cookies from browser (chrome, firefox, edge)
   --cookies-file FILE            Path to Netscape format cookie file
 ```
@@ -206,6 +217,13 @@ Automatic post-processing with FFmpeg:
 
 ### Common Issues
 
+**"Videos downloaded without audio"**
+- This is now handled by the 5-layer fallback system (v1.2+)
+- The engine automatically tries different format combinations
+- Check Log tab in GUI to see which [ATTEMPT X] succeeded
+- Watch for [FAILED] entries to see what was tried
+- **If still occurring**: Try lower quality (`-q medium`) or different format
+
 **"FFmpeg not found"**
 - Install FFmpeg (see Installation section)
 - Ensure it's in your system PATH
@@ -225,12 +243,87 @@ Automatic post-processing with FFmpeg:
 - Ensure you have internet connectivity
 - Update yt-dlp: `pip install --upgrade yt-dlp`
 
+### Understanding the Fallback System
+
+The engine uses a 5-layer degradation strategy to ensure maximum compatibility:
+
+| Layer | Format | Use Case |
+|-------|--------|----------|
+| L1 | `bestvideo[ext=mp4]+bestaudio[ext=m4a]` | Containerized formats (most reliable) |
+| L2 | `bestvideo+bestaudio/best` | Standard auto-merge |
+| L3 | `bestvideo[height<=1080]+bestaudio` | Quality-limited selection |
+| L4 | `best[ext=mp4]` | Single format fallback |
+| L5 | `best` | Absolute fallback |
+
+Each layer is tried with 4 strategies (Standard, Android, iOS, TV), resulting in **20 total attempts**.
+
+**Log output example**:
+```
+[ATTEMPT 1] L1: Best quality with merged audio
+[STRATEGY] Attempting with Standard bypass...
+[FAILED L1] Standard: Format not available
+[ATTEMPT 2] L1: Best quality with merged audio
+[STRATEGY] Attempting with Android bypass...
+[FAILED L1] Android: Download failed
+[ATTEMPT 3] L2: Auto-select best video+audio
+[STRATEGY] Attempting with Standard bypass...
+[SUCCESS] Download completed!
+```
+
 ### Debug Mode
 
-To get more detailed logs:
-1. Open Log tab in GUI
-2. Check `crash_*.txt` files for crash reports
-3. Enable verbose mode in CLI (planned feature)
+To get detailed logs:
+1. **GUI**: Open Log tab and watch [ATTEMPT X], [STRATEGY], [FAILED], [SUCCESS] messages
+2. **CLI**: Run with quality flag to see more details:
+   ```bash
+   python ytp3_main.py -q medium "URL"
+   ```
+3. **Check crash reports**: Look for `crash_*.txt` files in same directory
+
+### Enabling Verbose FFmpeg Output
+
+The engine now includes verbose FFmpeg logging:
+- Show detailed codec information
+- Audio/video stream details
+- Merge operations
+- Check Log tab for `[YT-DLP]` and `[POST-PROCESSING]` messages
+
+### Postprocessor & Metadata Handling (v1.3+)
+
+**What changed**:
+- Thumbnail embedding disabled to prevent compatibility issues
+- Downloads focus on audio/video quality and metadata stability
+- Robust FFmpeg error handling with detailed logging
+- Video quality never affected by postprocessor failures
+
+**Available Postprocessors**:
+- FFmpeg metadata embedding (title, description, duration, etc.)
+- FFmpeg format conversion and merging (audio+video combination)
+- Subtitle extraction and embedding (when requested)
+
+**To skip extra postprocessors**:
+```bash
+python ytp3_main.py --no-meta "URL"
+# Downloads video with audio only, no additional metadata
+```
+
+**Common FFmpeg Issues & Fixes**:
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `exit code -22` | FFmpeg postprocessor error | Usually resolved; check FFmpeg installation |
+| `ERROR: Post-processing failed` | FFmpeg codec incompatibility | Update FFmpeg or use lower quality |
+| `ERROR: Unable to embed using ffprobe` | Missing ffmpeg tools | Reinstall FFmpeg: verify with `ffmpeg -version` |
+| `[FAILED Ln] Standard: ...` | Download format not available | Try lower quality: `-q medium` or `-q low` |
+
+**5-Layer Fallback Strategy (v1.3+)**:
+1. **L1**: Best quality with merged audio/video
+2. **L2**: Auto-select best available video+audio combo
+3. **L3**: Capped to 1080p maximum resolution
+4. **L4**: Single best MP4 format (no merge needed)
+5. **L5**: Fallback to absolute best available format
+
+If L1 format fails, system automatically tries L2, then L3, etc. You always get a working download.
 
 ## Contributing
 

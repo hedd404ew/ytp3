@@ -101,6 +101,15 @@ class YTP3App(ctk.CTk):
             "Format", ["mp4", "mkv", "webm"], self.fmt_var
         )
         
+        # Quality selector (video mode only)
+        self.quality_var = ctk.StringVar(value="best")
+        self.quality_menu = self._create_combo_group(
+            "Quality", ["best", "high", "medium", "low"], self.quality_var
+        )
+        
+        # Force FFmpeg checkbox
+        self.chk_force_ffmpeg = self._create_checkbox_inline("Force FFmpeg Merge")
+        
         # Save path
         ctk.CTkLabel(
             self.sidebar, text="Save Path", font=("Arial", 10, "bold"),
@@ -303,6 +312,16 @@ class YTP3App(ctk.CTk):
         c.pack(anchor="w", pady=5, padx=10)
         return c
 
+    def _create_checkbox_inline(self, text):
+        """Create a styled checkbox for sidebar."""
+        c = ctk.CTkCheckBox(
+            self.sidebar, text=text, text_color="black",
+            corner_radius=0, border_color="black", fg_color=self.BG_GRAY,
+            checkmark_color="black", hover_color="#D0D0D0"
+        )
+        c.pack(anchor="w", pady=3, padx=10)
+        return c
+
     def build_log_tab(self):
         """Build the Log tab UI."""
         self.log_box = ctk.CTkTextbox(
@@ -328,6 +347,11 @@ class YTP3App(ctk.CTk):
         else:
             self.fmt_menu.configure(values=["mp4", "mkv", "webm"])
             self.fmt_var.set("mp4")
+            # Show quality and ffmpeg options for video mode
+            if hasattr(self, 'quality_var'):
+                self.quality_menu.configure(state="normal")
+            if hasattr(self, 'chk_force_ffmpeg'):
+                self.chk_force_ffmpeg.configure(state="normal")
 
     def browse_path(self):
         """Open directory browser for download path."""
@@ -361,20 +385,40 @@ class YTP3App(ctk.CTk):
     def load_settings(self):
         """Load settings from configuration."""
         d = self.cfg.load()
+        
+        # Paths and basic settings
         self.path_entry.delete(0, "end")
         self.path_entry.insert(0, d.get("save_path", ""))
+        
+        # URL (from last session)
+        self.url_box.delete(0, "end")
+        self.url_box.insert(0, d.get("last_url", ""))
+        
+        # Concurrency slider
         self.conc_slider.set(d.get("concurrency", 2))
         self.update_conc_label(d.get("concurrency", 2))
+        
+        # Mode and format
         self.mode_var.set(d.get("mode", "Video"))
         self.fmt_var.set(d.get("format", "mp4"))
         
+        # Quality
+        self.quality_var.set(d.get("quality", "best"))
+        
+        # Checkboxes (toggles)
         t = d.get("toggles", {})
         for c, k in [(self.chk_meta, "meta"), (self.chk_thumb, "thumb"),
-                     (self.chk_subs, "subs"), (self.chk_sponsor, "sponsor")]:
+                     (self.chk_subs, "subs"), (self.chk_sponsor, "sponsor"),
+                     (self.chk_geo, "geo"), (self.chk_force_ffmpeg, "force_ffmpeg")]:
             if t.get(k):
                 c.select()
             else:
                 c.deselect()
+        
+        # Authentication settings
+        self.browser_var.set(d.get("browser_cookies", "None"))
+        self.cookie_entry.delete(0, "end")
+        self.cookie_entry.insert(0, d.get("cookie_file", ""))
 
     def set_all_checks(self, val):
         """Set all queue items to checked/unchecked."""
@@ -434,14 +478,20 @@ class YTP3App(ctk.CTk):
         self.total_prog.start_animation()
         
         path = self.path_entry.get()
+        quality = self.quality_var.get()
+        
         opts = {
             'outtmpl': os.path.join(path, '%(title)s.%(ext)s'),
             'ignoreerrors': True,
-            'writethumbnail': self.chk_thumb.get(),
             'add_metadata': self.chk_meta.get(),
             'writesubtitles': self.chk_subs.get(),
             'embedsubtitles': self.chk_subs.get(),
             'geo_bypass': self.chk_geo.get(),
+            'format_quality': quality,  # Pass quality to engine
+            'prefer_ffmpeg': True,
+            'postprocessor_args': ['-c:v', 'copy', '-c:a', 'aac', '-loglevel', 'verbose'],
+            'progress_hooks': [],
+            'logger': None,
         }
         
         if self.chk_sponsor.get():
@@ -452,6 +502,14 @@ class YTP3App(ctk.CTk):
         elif self.cookie_entry.get().strip():
             opts['cookiefile'] = self.cookie_entry.get().strip()
         
+        # Log download configuration
+        self.log(f"[CONFIG] Mode: {'AUDIO' if self.mode_var.get() == 'Audio' else 'VIDEO'}")
+        self.log(f"[CONFIG] Format: {self.fmt_var.get()}")
+        self.log(f"[CONFIG] Quality: {quality}")
+        self.log(f"[CONFIG] Force FFmpeg: {self.chk_force_ffmpeg.get()}")
+        self.log(f"[CONFIG] Concurrent Downloads: {int(self.conc_slider.get())}")
+        self.log("")
+        
         if self.mode_var.get() == "Audio":
             opts.update({
                 'format': 'bestaudio/best',
@@ -460,58 +518,115 @@ class YTP3App(ctk.CTk):
                     'preferredcodec': self.fmt_var.get()
                 }]
             })
+            self.log("[AUDIO] Audio-only mode enabled")
         else:
+            # Video mode - let engine handle format selection with fallbacks
             opts.update({
                 'format': 'bestvideo+bestaudio/best',
-                'merge_output_format': self.fmt_var.get()
+                'merge_output_format': self.fmt_var.get(),
             })
+            self.log(f"[VIDEO] Video+Audio mode with 5-layer fallback enabled")
         
-        if self.chk_meta.get() and 'postprocessors' not in opts:
+        # Initialize postprocessors
+        if 'postprocessors' not in opts:
             opts['postprocessors'] = []
+        
+        # NOTE: Thumbnail embedding disabled due to compatibility issues (exit code -22)
+        # Users will get video with audio and metadata instead
+        
+        # Add metadata (but allow failures)
         if self.chk_meta.get():
-            opts['postprocessors'].append({'key': 'FFmpegMetadata'})
-        if self.chk_thumb.get():
-            opts['postprocessors'].append({'key': 'EmbedThumbnail'})
+            opts['postprocessors'].append({
+                'key': 'FFmpegMetadata',
+                'add_chapters': False  # Disable chapter adding to reduce complexity
+            })
         
         max_workers = int(self.conc_slider.get())
         
         def run_queue():
-            engine = YTP3Engine(opts, self.caps, log_callback=None)
+            engine = YTP3Engine(opts, self.caps, log_callback=self.log)
+            
+            self.log(f"[QUEUE] Starting download of {len(selected_items)} item(s) with {max_workers} worker(s)")
+            self.log("")
+            
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {}
-                for item in selected_items:
-                    item.update_status(0, "Pending...")
+                for idx, item in enumerate(selected_items, 1):
+                    item.update_status(0, "Queued...")
                     url = item.url
+                    title = item.info.get('title', 'Unknown')
+                    
+                    self.log(f"[QUEUE {idx}/{len(selected_items)}] Queuing: {title[:60]}")
+                    
                     future = executor.submit(engine.download_single_item, url, item.update_status)
-                    futures[future] = item
-                    time.sleep(random.randint(3, 6))
+                    futures[future] = (item, title)
+                    time.sleep(random.randint(2, 4))
                 
+                self.log("")
                 completed = 0
+                failed = 0
+                
                 for future in concurrent.futures.as_completed(futures):
-                    item = futures[future]
+                    item, title = futures[future]
                     try:
                         future.result()
                         item.update_status(100, "Done")
+                        self.log(f"[SUCCESS] ✓ {title[:60]}")
+                        completed += 1
                     except Exception as e:
                         item.update_status(0, "Failed")
-                        self.log(f"[ERROR] Failed {item.info.get('title')}: {e}")
+                        failed += 1
+                        error_msg = str(e)[:100]
+                        self.log(f"[FAILED] ✗ {title[:60]}")
+                        self.log(f"         Error: {error_msg}")
+                        
+                        # Show detailed error if available from engine
+                        if hasattr(engine, 'last_detailed_error') and engine.last_detailed_error:
+                            self.log(f"         Details: {engine.last_detailed_error[:150]}")
                     
-                    completed += 1
-                    prog_val = completed / len(selected_items)
+                    prog_val = (completed + failed) / len(selected_items)
                     self.total_prog.set(prog_val)
-                    self.total_status.configure(text=f"Completed {completed}/{len(selected_items)}")
+                    self.total_status.configure(text=f"{completed} OK | {failed} Failed | {len(selected_items) - completed - failed} Pending")
             
+            self.log("")
+            self.log(f"[COMPLETE] Queue finished: {completed} successful, {failed} failed")
             self.total_prog.stop_animation()
             self.total_prog.set(1.0)
             self.btn_start.configure(state="normal", text="START")
-            self.log("[SUCCESS] Queue complete.")
         
         threading.Thread(target=run_queue, daemon=True).start()
 
     def on_close(self):
         """Handle window close event."""
+        # Save basic settings
         self.cfg.data["save_path"] = self.path_entry.get()
-        self.cfg.data["concurrency"] = self.conc_slider.get()
+        self.cfg.data["concurrency"] = int(self.conc_slider.get())
+        
+        # Save URL
+        self.cfg.data["last_url"] = self.url_box.get()
+        
+        # Save mode and format
+        self.cfg.data["mode"] = self.mode_var.get()
+        self.cfg.data["format"] = self.fmt_var.get()
+        
+        # Save quality
+        self.cfg.data["quality"] = self.quality_var.get()
+        
+        # Save toggle settings
+        toggles = {
+            "meta": self.chk_meta.get(),
+            "thumb": self.chk_thumb.get(),
+            "subs": self.chk_subs.get(),
+            "sponsor": self.chk_sponsor.get(),
+            "geo": self.chk_geo.get(),
+            "force_ffmpeg": self.chk_force_ffmpeg.get(),
+        }
+        self.cfg.data["toggles"] = toggles
+        
+        # Save authentication settings
+        self.cfg.data["browser_cookies"] = self.browser_var.get()
+        self.cfg.data["cookie_file"] = self.cookie_entry.get()
+        
         self.cfg.save()
         self.destroy()
 

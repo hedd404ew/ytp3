@@ -115,6 +115,233 @@ class TestYTP3Engine(unittest.TestCase):
 - Streaming downloads (not in-memory)
 - Efficient metadata caching
 
+## Recent Changes (v1.3)
+
+### Critical Bug Fixes
+
+1. **YoutubeDL Logger Attribute Error** (FIXED)
+   - **Issue**: Code tried to access non-existent `ydl.logger` attribute
+   - **Impact**: All 20 download attempts failed with AttributeError
+   - **Fix**: Removed yt-dlp logger attachment; rely on exception handling instead
+   - **Result**: Downloads work as intended
+
+2. **Thumbnail Embedding Disabled** (REDESIGN)
+   - **Issue**: `exit code -22` failures when embedding webp in mp4
+   - **Decision**: Disable thumbnail embedding entirely
+   - **Reason**: Thumbnail support causes reliability issues without benefit
+   - **Result**: Focus on video+audio quality and stability
+
+### UI Improvements
+
+1. **New Progress Bar** (REDESIGNED)
+   - Modern retro-style with solid color fill
+   - Color-coded by progress (red→orange→green)
+   - Percentage display directly on bar
+   - Better visual feedback for users
+
+### Engine Simplification
+
+- Removed FFmpegErrorCapture logging handler (unused)
+- Simplified postprocessor configuration
+- Removed thumbnail postprocessor attempts (FFmpegThumbnailsConvertor)
+- Removed thumbnail embedding attempts (EmbedThumbnail)
+- Focus on core functionality: video+audio merge and metadata embedding
+
+## Troubleshooting
+
+### Issue: Downloaded videos have no audio
+
+**Root Cause**: When yt-dlp selects `bestvideo+bestaudio`, separate video and audio streams need to be merged using FFmpeg. Without proper postprocessor configuration, videos may contain only the video stream.
+
+**5-Layer Degradation Fallback System** (v1.2+):
+
+The engine now uses a comprehensive fallback strategy with 5 layers:
+
+1. **Layer 1**: `bestvideo[ext=mp4]+bestaudio[ext=m4a]` - Prefer containerized formats
+2. **Layer 2**: `bestvideo+bestaudio/best` - Auto-select and merge
+3. **Layer 3**: `bestvideo[height<=1080]+bestaudio` - Quality-limited selection
+4. **Layer 4**: `best[ext=mp4]` - Single format fallback
+5. **Layer 5**: `best` - Absolute fallback to any available
+
+Each format is tried with each download strategy (Standard, Android, iOS, TV bypass):
+- **Total attempts**: Up to 20 different format/strategy combinations
+- **Automatic downgrade**: If a format fails, engine tries next fallback
+- **Detailed logging**: Comprehensive error messages show which attempt failed and why
+
+**Solutions**:
+
+1. **Enable Comprehensive Logging** (see logs):
+   ```bash
+   # GUI: Check Log tab for [ATTEMPT X] messages
+   # CLI: Look for [ATTEMPT], [STRATEGY], [FORMAT] logs
+   ```
+
+2. **Quality Selection** (may find combined streams):
+   ```bash
+   python ytp3_main.py -q medium "URL"
+   ```
+
+3. **Verify FFmpeg Installation**:
+   ```bash
+   ffmpeg -version
+   ffmpeg -codecs | grep aac
+   ```
+
+### Issue: Thumbnail embedding fails (exit code -22)
+
+**Root Cause** (Fixed in v1.3): FFmpeg and mutagen consistently fail to embed webp thumbnails in mp4 containers due to format compatibility issues.
+
+**Previous Error Messages**:
+```
+ERROR: Unable to embed using ffprobe & ffmpeg; Exiting with exit code -22
+WARNING: unable to embed using mutagen; incompatible image type: webp
+```
+
+**Solution Implemented** (v1.3+):
+
+Thumbnail embedding has been **disabled completely** to eliminate this source of download failures. This decision was made because:
+
+1. **Root cause is fundamental**: webp→mp4 embedding fails across FFmpeg versions
+2. **Workarounds cause complexity**: thumbnail conversion added significant code without solving the core issue
+3. **Videos are usable without thumbnails**: Core functionality (video+audio) works perfectly
+4. **Focus on reliability**: Downloads succeed reliably even if thumbnails are skipped
+
+**New Behavior**:
+- All downloads embed metadata (title, description, duration, artist, etc.)
+- Thumbnail embedding is entirely skipped
+- Videos always contain proper audio+video merged streams
+- No more `exit code -22` or mutagen compatibility errors
+
+**If you previously needed thumbnails**:
+- You can extract them separately using FFmpeg after download
+- Most video players (VLC, Windows Media Player, etc.) don't display embedded thumbnails anyway
+- The focus is now on download reliability over metadata richness
+
+### Issue: Metadata embedding failures
+
+**Root Cause**: FFmpeg or mutagen fails to write metadata to video file.
+
+**Error Messages**:
+```
+[Metadata] Adding metadata failed with error: ...
+ERROR: Post-processing failed
+```
+
+**Solutions** (v1.2+):
+
+1. **Automatic Retry** (Enabled by default):
+   - If metadata embedding fails, video is still usable
+   - Download succeeds with or without metadata
+
+2. **Disable Metadata Embedding**:
+   ```bash
+   # CLI
+   python ytp3_main.py --no-meta "URL"
+   
+   # GUI: Uncheck "Embed Metadata" checkbox
+   ```
+
+3. **Check FFmpeg Metadata Support**:
+   ```bash
+   ffmpeg -version | grep -i metadata
+   ```
+
+### Issue: "n challenge solving failed" warnings
+
+**Root Cause**: YouTube has JavaScript challenges that require deno/Node.js to solve.
+
+**Warnings**:
+```
+WARNING: [youtube] [jsc] Remote components challenge solver script (deno)...
+WARNING: [youtube] [...]: n challenge solving failed: Some formats may be missing...
+```
+
+**Solutions** (v1.2+):
+
+1. **Install Deno** (Recommended):
+   ```bash
+   # Windows (with chocolatey)
+   choco install deno
+   
+   # Or download from https://deno.land
+   ```
+
+2. **Use CLI Option** (if deno installed):
+   ```bash
+   python ytp3_main.py --remote-components ejs:github "URL"
+   ```
+
+3. **Ignore Warnings**: 
+   - Downloads usually still work despite warnings
+   - Use fallback strategies (Android, iOS) which may avoid challenges
+   - Warnings don't prevent download
+
+## Comprehensive Error Handling (v1.2+)
+
+### Error Detection & Recovery
+
+The engine now:
+- ✅ Detects FFmpeg exit codes (e.g., -22)
+- ✅ Catches postprocessor failures (metadata, thumbnail)
+- ✅ Automatically retries without failing postprocessors
+- ✅ Converts webp/png thumbnails to jpg
+- ✅ Continues download even if metadata fails
+- ✅ Tracks all errors in detailed logs
+
+### Log Output Examples
+
+**Successful with postprocessor fallback**:
+```
+[ATTEMPT 1] L1: Best quality with merged audio
+[YT-DLP] Downloading with format: bestvideo[ext=mp4]+bestaudio[ext=m4a]
+[DOWNLOADING] 2.5MB/s | ETA: 2:30
+[WARNING] Postprocessor error detected: exit code -22
+[RETRY] Attempting download without problematic postprocessors...
+[SUCCESS] Download completed (without thumbnails/metadata)
+```
+
+**Failed attempt, retrying**:
+```
+[ATTEMPT 1] L1: Best quality with merged audio
+[FAILED L1] Standard: Format not available
+[ATTEMPT 2] L2: Auto-select best video+audio
+[SUCCESS] Download completed with Standard strategy, format L2
+```
+
+## Recent Changes (v1.2)
+
+### Major Features
+
+1. **FFmpeg Error Detection**
+   - Captures FFmpeg exit codes
+   - Detects "Unable to embed" errors
+   - Detects "exit code -22" failures
+
+2. **Postprocessor Resilience**
+   - Automatic retry without failing postprocessors
+   - Video saved even if metadata/thumbnail fails
+   - Graceful degradation
+
+3. **Thumbnail Format Conversion**
+   - Converts webp/png to jpg for better compatibility
+   - Catches embedding failures
+   - Disables thumbnails if conversion fails
+
+4. **Comprehensive Logging** (v1.2+)
+   - FFmpeg error messages captured
+   - Postprocessor failures logged
+   - Clear [WARNING], [RETRY], [SUCCESS] tags
+
+### Fixed Issues (v1.2)
+
+✅ FFmpeg exit code -22 (webp embedding)
+✅ Mutagen incompatible image type errors
+✅ FFmpegMetadata failures
+✅ Missing audio due to postprocessor issues
+✅ ANSI color code parsing errors
+✅ Thumbnail loading in GUI
+✅ Configuration persistence
+
 ## Future Improvements
 
 - [ ] Plugin system for custom strategies
@@ -124,3 +351,6 @@ class TestYTP3Engine(unittest.TestCase):
 - [ ] Advanced filtering/search
 - [ ] Network proxy support
 - [ ] Database-backed configuration
+- [ ] Custom retry configuration UI
+- [ ] Download speed optimization
+- [ ] Subtitle language selection

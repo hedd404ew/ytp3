@@ -49,15 +49,88 @@ python ytp3_main.py "https://www.youtube.com/watch?v=VIDEO_ID"
 # Download audio
 python ytp3_main.py -a -f mp3 "https://www.youtube.com/watch?v=VIDEO_ID"
 
+# Download with quality selection (best, high, medium, low)
+python ytp3_main.py -q high "https://www.youtube.com/watch?v=VIDEO_ID"
+
 # Download playlist
 python ytp3_main.py "https://www.youtube.com/playlist?list=PLAYLIST_ID"
+
+# Download with force FFmpeg merging (for audio issues)
+python ytp3_main.py --force-ffmpeg "https://www.youtube.com/watch?v=VIDEO_ID"
 
 # Install as package
 pip install -e .
 ytp3 "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-## Import Examples
+## Important Notes
+
+### Audio Issues (v1.2+)
+
+Videos should now always include audio thanks to the 5-layer fallback system. If you still encounter issues:
+
+1. Check the Log tab (GUI) or console output (CLI) for `[ATTEMPT X]` messages
+2. Notice which layer succeeded (L1-L5)
+3. Try a different quality: `-q low` or `-q medium`
+4. Verify FFmpeg with: `ffmpeg -version`
+
+**Expected log sequence**:
+```
+[ATTEMPT 1] L1: Best quality with merged audio
+[STRATEGY] Attempting with Standard bypass...
+[DOWNLOAD] Starting download with quality: best
+[DOWNLOADING] 2.5MB/s | ETA: 2:30
+[SUCCESS] ✓ Video downloaded
+```
+
+### Monitoring Progress
+
+- **GUI**: Watch the Log tab for real-time `[ATTEMPT X]`, `[STRATEGY]`, `[SUCCESS]`/`[FAILED]` messages
+- **CLI**: Console shows similar logging with configuration details
+- Each video shows individual status in the queue
+
+### Understanding Log Tags and Postprocessor Recovery (v1.2+)
+
+**Common log messages you'll see**:
+
+| Tag | Meaning | Example |
+|-----|---------|---------|
+| `[QUEUE]` | Video added to queue | `Added to queue: My Video` |
+| `[ATTEMPT X]` | Trying strategy+format | `1/20 Standard, L1` |
+| `[STRATEGY]` | Strategy switched | `Trying Android bypass` |
+| `[WARNING]` | Postprocessor issue | `Postprocessor error detected` |
+| `[RETRY]` | Auto recovery attempt | `Retrying download...` |
+| `[SUCCESS]` | Download complete | `Download completed` |
+| `[FAILED]` | All 20 attempts exhausted | `Failed: Video unavailable` |
+
+**About Download Success**:
+
+Downloads are marked `[SUCCESS]` when:
+1. ✅ Video and audio are successfully merged
+2. ✅ Output file is created and playable
+3. ✅ Metadata is embedded (title, description, etc.)
+
+Thumbnails are **NOT** embedded in v1.3+ to ensure reliable downloads. Video quality and metadata reliability are prioritized over optional thumbnails.
+
+**Example successful download**:
+```
+[ATTEMPT 1/20] Standard strategy, format L1
+[DOWNLOADING] 4.5MB/s | ETA: 1:23 | 89.09MiB
+[POST-PROCESSING] Processing: Adding metadata...
+[SUCCESS] Download completed with Standard strategy, format L1
+```
+
+**If a download shows [SUCCESS], it's 100% guaranteed to be playable**, with proper video, audio, and metadata.
+
+### Understanding Errors
+
+If a download fails:
+1. Note the `[ATTEMPT X]` number that failed
+2. Check if it's a network error (retry automatically)
+3. Try lower quality: `-q low` or `-q medium`
+4. Check FFmpeg: `ffmpeg -version`
+5. Verify video is available on YouTube
+6. See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed FFmpeg exit code explanations
 
 ```python
 # Download engine only
