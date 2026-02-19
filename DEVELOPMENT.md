@@ -115,38 +115,6 @@ class TestYTP3Engine(unittest.TestCase):
 - Streaming downloads (not in-memory)
 - Efficient metadata caching
 
-## Recent Changes (v1.3)
-
-### Critical Bug Fixes
-
-1. **YoutubeDL Logger Attribute Error** (FIXED)
-   - **Issue**: Code tried to access non-existent `ydl.logger` attribute
-   - **Impact**: All 20 download attempts failed with AttributeError
-   - **Fix**: Removed yt-dlp logger attachment; rely on exception handling instead
-   - **Result**: Downloads work as intended
-
-2. **Thumbnail Embedding Disabled** (REDESIGN)
-   - **Issue**: `exit code -22` failures when embedding webp in mp4
-   - **Decision**: Disable thumbnail embedding entirely
-   - **Reason**: Thumbnail support causes reliability issues without benefit
-   - **Result**: Focus on video+audio quality and stability
-
-### UI Improvements
-
-1. **New Progress Bar** (REDESIGNED)
-   - Modern retro-style with solid color fill
-   - Color-coded by progress (red→orange→green)
-   - Percentage display directly on bar
-   - Better visual feedback for users
-
-### Engine Simplification
-
-- Removed FFmpegErrorCapture logging handler (unused)
-- Simplified postprocessor configuration
-- Removed thumbnail postprocessor attempts (FFmpegThumbnailsConvertor)
-- Removed thumbnail embedding attempts (EmbedThumbnail)
-- Focus on core functionality: video+audio merge and metadata embedding
-
 ## Troubleshooting
 
 ### Issue: Downloaded videos have no audio
@@ -307,40 +275,6 @@ The engine now:
 [ATTEMPT 2] L2: Auto-select best video+audio
 [SUCCESS] Download completed with Standard strategy, format L2
 ```
-
-## Recent Changes (v1.2)
-
-### Major Features
-
-1. **FFmpeg Error Detection**
-   - Captures FFmpeg exit codes
-   - Detects "Unable to embed" errors
-   - Detects "exit code -22" failures
-
-2. **Postprocessor Resilience**
-   - Automatic retry without failing postprocessors
-   - Video saved even if metadata/thumbnail fails
-   - Graceful degradation
-
-3. **Thumbnail Format Conversion**
-   - Converts webp/png to jpg for better compatibility
-   - Catches embedding failures
-   - Disables thumbnails if conversion fails
-
-4. **Comprehensive Logging** (v1.2+)
-   - FFmpeg error messages captured
-   - Postprocessor failures logged
-   - Clear [WARNING], [RETRY], [SUCCESS] tags
-
-### Fixed Issues (v1.2)
-
-✅ FFmpeg exit code -22 (webp embedding)
-✅ Mutagen incompatible image type errors
-✅ FFmpegMetadata failures
-✅ Missing audio due to postprocessor issues
-✅ ANSI color code parsing errors
-✅ Thumbnail loading in GUI
-✅ Configuration persistence
 
 ## Future Improvements
 
