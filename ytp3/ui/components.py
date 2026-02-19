@@ -140,6 +140,9 @@ class VideoItemRow(ctk.CTkFrame):
         self.url = info_dict.get('url') or info_dict.get('original_url')
         self.thumb_image = None
         
+        # BUG FIX: Flag invalid entries that lack URL
+        self.is_valid = bool(self.url)
+        
         self.bind("<Button-1>", self.toggle_selection)
         self._create_widgets()
         self._load_thumbnail()
@@ -168,9 +171,17 @@ class VideoItemRow(ctk.CTkFrame):
         title = self.info.get('title', 'Unknown Title')
         if len(title) > 55:
             title = title[:52] + "..."
+        
+        # Add visual indicator for invalid items
+        if not self.is_valid:
+            title = title + " [INVALID URL]"
+            title_color = "#808080"
+        else:
+            title_color = "black"
+            
         self.title_lbl = ctk.CTkLabel(
             self, text=title, font=("Arial", 11, "bold"),
-            text_color="black", anchor="w"
+            text_color=title_color, anchor="w"
         )
         self.title_lbl.grid(row=0, column=2, padx=5, pady=(5, 0), sticky="ew")
         self.title_lbl.bind("<Button-1>", self.toggle_selection)
@@ -203,6 +214,10 @@ class VideoItemRow(ctk.CTkFrame):
 
     def toggle_selection(self, event=None):
         """Toggle the selection state of this item."""
+        # Prevent selection of invalid items (missing URL)
+        if not self.is_valid:
+            return
+            
         self.var_selected.set(not self.var_selected.get())
         color = "#FFFFFF" if self.var_selected.get() else "#DFDFDF"
         self.configure(fg_color=color)

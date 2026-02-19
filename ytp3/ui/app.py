@@ -470,9 +470,17 @@ class YTP3App(ctk.CTk):
 
     def start_download(self):
         """Start downloading selected queue items."""
-        selected_items = [i for i in self.queue_items if i.var_selected.get()]
+        # Filter out invalid items (missing URLs) and log them
+        all_selected = [i for i in self.queue_items if i.var_selected.get()]
+        selected_items = [i for i in all_selected if i.is_valid]
+        
         if not selected_items:
-            return self.log("[WARN] No items selected.")
+            return self.log("[WARN] No valid items selected (check for [INVALID URL] labels).")
+        
+        # Warn about skipped invalid items
+        invalid_count = len(all_selected) - len(selected_items)
+        if invalid_count > 0:
+            self.log(f"[WARN] Skipping {invalid_count} item(s) with invalid/missing URLs")
         
         self.btn_start.configure(state="disabled", text="Running...")
         self.total_prog.start_animation()
