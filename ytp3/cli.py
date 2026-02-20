@@ -118,6 +118,14 @@ def run_cli(args):
             'postprocessor_args': ['-q:a', '0', '-threads', '4'],
             'keep_video': False,
         })
+        
+        # EDGE CASE FIX: SponsorBlock conflicts with audio-only extraction
+        # SponsorBlock is designed to remove visual sponsors, not audio content
+        # In audio-only mode, FFmpeg merge fails due to missing video stream for SponsorBlock processing
+        # Solution: Disable SponsorBlock in audio mode
+        if 'sponsorblock_remove' in opts:
+            print("[WARNING] SponsorBlock disabled in audio-only mode (visual feature only)")
+            del opts['sponsorblock_remove']
     else:
         fmt = args.format or 'mp4'
         quality = args.quality

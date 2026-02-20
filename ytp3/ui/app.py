@@ -502,22 +502,6 @@ class YTP3App(ctk.CTk):
             'logger': None,
         }
         
-        if self.chk_sponsor.get():
-            opts['sponsorblock_remove'] = 'all'
-        
-        if self.browser_var.get() != "None":
-            opts['cookiesfrombrowser'] = (self.browser_var.get(), None, None, None)
-        elif self.cookie_entry.get().strip():
-            opts['cookiefile'] = self.cookie_entry.get().strip()
-        
-        # Log download configuration
-        self.log(f"[CONFIG] Mode: {'AUDIO' if self.mode_var.get() == 'Audio' else 'VIDEO'}")
-        self.log(f"[CONFIG] Format: {self.fmt_var.get()}")
-        self.log(f"[CONFIG] Quality: {quality}")
-        self.log(f"[CONFIG] Force FFmpeg: {self.chk_force_ffmpeg.get()}")
-        self.log(f"[CONFIG] Concurrent Downloads: {int(self.conc_slider.get())}")
-        self.log("")
-        
         if self.mode_var.get() == "Audio":
             # Audio extraction with codec selection
             audio_codec_map = {
@@ -544,13 +528,40 @@ class YTP3App(ctk.CTk):
                 'keep_video': False,
             })
             self.log("[AUDIO] Audio-only mode enabled with enhanced codec support")
+            
+            # EDGE CASE FIX: SponsorBlock conflicts with audio-only extraction
+            # SponsorBlock is designed to remove visual sponsors, not audio content
+            # In audio-only mode, FFmpeg merge fails due to missing video stream for SponsorBlock processing
+            # Solution: Disable SponsorBlock in audio mode even if user enabled it
+            if self.chk_sponsor.get():
+                self.log("[WARNING] SponsorBlock disabled in audio-only mode (visual feature only)")
+                self.log("[SUGGESTION] For sponsor removal during audio extraction, use Video mode first")
         else:
             # Video mode - let engine handle format selection with fallbacks
             opts.update({
                 'format': 'bestvideo+bestaudio/best',
-                'merge_output_format': self.fmt_var.get(),
+                'merge_output_format': fmt,
+                'format_quality': quality,
             })
-            self.log(f"[VIDEO] Video+Audio mode with fallback enabled")
+            self.log("[VIDEO] Video mode enabled with fallback format selection")
+            
+            # Add SponsorBlock only in video mode (where it's effective)
+            if self.chk_sponsor.get():
+                opts['sponsorblock_remove'] = 'all'
+                self.log("[SPONSOR] SponsorBlock enabled - removing sponsor segments")
+        
+        if self.browser_var.get() != "None":
+            opts['cookiesfrombrowser'] = (self.browser_var.get(), None, None, None)
+        elif self.cookie_entry.get().strip():
+            opts['cookiefile'] = self.cookie_entry.get().strip()
+        
+        # Log download configuration
+        self.log(f"[CONFIG] Mode: {'AUDIO' if self.mode_var.get() == 'Audio' else 'VIDEO'}")
+        self.log(f"[CONFIG] Format: {self.fmt_var.get()}")
+        self.log(f"[CONFIG] Quality: {quality}")
+        self.log(f"[CONFIG] Force FFmpeg: {self.chk_force_ffmpeg.get()}")
+        self.log(f"[CONFIG] Concurrent Downloads: {int(self.conc_slider.get())}")
+        self.log("")
         
         # Initialize postprocessors
         if 'postprocessors' not in opts:

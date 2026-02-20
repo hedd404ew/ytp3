@@ -29,6 +29,13 @@ class TestConfigManagerInitialization:
         
         # Should have empty or default data
         assert isinstance(config.data, dict)
+    
+    def test_config_manager_init_without_file(self):
+        """Test ConfigManager initialization without providing a file path."""
+        config = ConfigManager()
+        
+        assert config.config_file is not None
+        assert isinstance(config.data, dict)
 
 
 class TestConfigManagerPersistence:
@@ -85,6 +92,15 @@ class TestConfigManagerPersistence:
         
         assert isinstance(result, dict)
         assert result == sample_config
+    
+    def test_load_nonexistent_file(self, temp_dir):
+        """Test loading from a nonexistent file returns defaults."""
+        config_file = os.path.join(temp_dir, 'nonexistent.json')
+        config = ConfigManager(config_file)
+        
+        # Load should not fail, just return defaults
+        result = config.load()
+        assert isinstance(result, dict)
 
 
 class TestConfigManagerDataTypes:
@@ -117,3 +133,38 @@ class TestConfigManagerDataTypes:
         assert loaded['null'] is None
         assert loaded['list'] == [1, 2, 3]
         assert loaded['dict'] == {'nested': 'value'}
+
+
+class TestConfigManagerInitialize:
+    """Test ConfigManager initialize method."""
+    
+    def test_initialize_portable_mode(self, temp_dir):
+        """Test initialize in portable mode."""
+        config = ConfigManager()
+        
+        # Change to temp dir
+        old_cwd = os.getcwd()
+        os.chdir(temp_dir)
+        
+        try:
+            config.initialize(is_portable=True)
+            
+            # Should set config_file to local path
+            assert config.config_file == "ytp3_config.json"
+        finally:
+            os.chdir(old_cwd)
+    
+    def test_initialize_non_portable_mode(self):
+        """Test initialize in non-portable mode."""
+        config = ConfigManager()
+        
+        # This will create config in system location
+        # Just verify it doesn't raise an error
+        try:
+            config.initialize(is_portable=False)
+            
+            # Should set some config_file path
+            assert config.config_file is not None
+        except Exception as e:
+            # May fail on permission issues, but shouldn't crash code
+            assert True

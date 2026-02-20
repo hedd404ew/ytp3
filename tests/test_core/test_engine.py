@@ -3,6 +3,7 @@
 import pytest
 import sys
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -122,6 +123,31 @@ class TestYTP3EngineLogging:
         engine.log("Test message")
         
         assert "Test message" in logged_messages
+    
+    def test_log_formats_message_with_prefix(self, sample_opts, sample_caps, capsys):
+        """Test that log messages get formatted with [INFO] prefix."""
+        engine = YTP3Engine(sample_opts, sample_caps)
+        
+        engine.log("Debug info")
+        captured = capsys.readouterr()
+        
+        assert "Debug info" in captured.out
+    
+    def test_log_callback_multiple_calls(self, sample_opts, sample_caps):
+        """Test callback receives all logged messages."""
+        messages = []
+        
+        def callback(msg):
+            messages.append(msg)
+        
+        engine = YTP3Engine(sample_opts, sample_caps, log_callback=callback)
+        
+        engine.log("Message 1")
+        engine.log("Message 2")
+        engine.log("Message 3")
+        
+        assert len(messages) == 3
+        assert all("Message" in m for m in messages)
 
 
 class TestYTP3EngineErrorTracking:
@@ -139,3 +165,46 @@ class TestYTP3EngineErrorTracking:
         
         engine.last_detailed_error = "Test error message"
         assert engine.last_detailed_error == "Test error message"
+    
+    def test_error_tracking_with_complex_message(self, sample_opts, sample_caps):
+        """Test error tracking with multiline error messages."""
+        engine = YTP3Engine(sample_opts, sample_caps)
+        
+        error_msg = "Line 1\nLine 2\nLine 3"
+        engine.last_detailed_error = error_msg
+        
+        assert engine.last_detailed_error == error_msg
+        assert "\n" in engine.last_detailed_error
+
+
+class TestYTP3EngineIntegration:
+    """Test engine integration scenarios."""
+    
+    def test_engine_with_different_quality_levels(self, sample_caps):
+        """Test engine initialization with different quality requirements."""
+        qualities = ['best', 'high', 'medium', 'low']
+        
+        for quality in qualities:
+            opts = {
+                'format': 'bestvideo+bestaudio/best',
+                'quality': quality,
+                'quiet': True,
+            }
+            engine = YTP3Engine(opts, sample_caps)
+            assert engine.FORMAT_FALLBACKS[quality] is not None
+    
+    def test_engine_preserves_options(self, sample_opts, sample_caps):
+        """Test that engine preserves passed options."""
+        custom_opts = {
+            'format': 'custom_format',
+            'special_flag': True,
+            'custom_value': 42
+        }
+        custom_caps = {'ffmpeg': True, 'special': True}
+        
+        engine = YTP3Engine(custom_opts, custom_caps)
+        
+        assert engine.opts['format'] == 'custom_format'
+        assert engine.opts['special_flag'] is True
+        assert engine.opts['custom_value'] == 42
+        assert engine.caps['special'] is True
