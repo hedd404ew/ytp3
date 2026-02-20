@@ -55,6 +55,12 @@ python ytp3_main.py -q high "https://www.youtube.com/watch?v=VIDEO_ID"
 # Download playlist
 python ytp3_main.py "https://www.youtube.com/playlist?list=PLAYLIST_ID"
 
+# Download with SponsorBlock removal (removes sponsor segments)
+python ytp3_main.py --sponsor "https://www.youtube.com/watch?v=VIDEO_ID"
+
+# Download audio with SponsorBlock (video-first workflow: downloads video with sponsors removed, then extracts audio)
+python ytp3_main.py -a -f mp3 --sponsor "https://www.youtube.com/watch?v=VIDEO_ID"
+
 # Download with force FFmpeg merging (for audio issues)
 python ytp3_main.py --force-ffmpeg "https://www.youtube.com/watch?v=VIDEO_ID"
 

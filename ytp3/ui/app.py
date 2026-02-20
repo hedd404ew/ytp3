@@ -531,11 +531,12 @@ class YTP3App(ctk.CTk):
             
             # EDGE CASE FIX: SponsorBlock conflicts with audio-only extraction
             # SponsorBlock is designed to remove visual sponsors, not audio content
-            # In audio-only mode, FFmpeg merge fails due to missing video stream for SponsorBlock processing
-            # Solution: Disable SponsorBlock in audio mode even if user enabled it
+            # In audio-only mode, engine will use video-first workflow (apply SponsorBlock → merge → extract audio)
+            # Solution: Mark intent for engine rather than deleting sponsorblock
             if self.chk_sponsor.get():
-                self.log("[WARNING] SponsorBlock disabled in audio-only mode (visual feature only)")
-                self.log("[SUGGESTION] For sponsor removal during audio extraction, use Video mode first")
+                opts['sponsorblock_remove'] = 'all'
+                opts['sponsorblock_audio_workaround'] = True
+                self.log("[SPONSOR] SponsorBlock requested with audio extraction — engine will use video-first workflow")
         else:
             # Video mode - let engine handle format selection with fallbacks
             opts.update({
@@ -545,7 +546,7 @@ class YTP3App(ctk.CTk):
             })
             self.log("[VIDEO] Video mode enabled with fallback format selection")
             
-            # Add SponsorBlock only in video mode (where it's effective)
+            # Add SponsorBlock in video mode (where it's directly effective)
             if self.chk_sponsor.get():
                 opts['sponsorblock_remove'] = 'all'
                 self.log("[SPONSOR] SponsorBlock enabled - removing sponsor segments")

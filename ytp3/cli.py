@@ -29,6 +29,7 @@ Examples:
     p.add_argument("--no-meta", action="store_true", help="Don't embed metadata")
     p.add_argument("--no-thumb", action="store_true", help="Don't embed thumbnail")
     p.add_argument("--subs", action="store_true", help="Download subtitles")
+    p.add_argument("--sponsor", action="store_true", help="Remove SponsorBlock segments (video mode uses direct removal, audio mode uses video-first workflow)")
     p.add_argument("--geo", action="store_true", help="Enable geo-bypass")
     p.add_argument("--reverse", action="store_true", help="Reverse playlist order")
     p.add_argument("--force-ffmpeg", action="store_true", help="Force FFmpeg concat postprocessor for merging streams")
@@ -118,14 +119,6 @@ def run_cli(args):
             'postprocessor_args': ['-q:a', '0', '-threads', '4'],
             'keep_video': False,
         })
-        
-        # EDGE CASE FIX: SponsorBlock conflicts with audio-only extraction
-        # SponsorBlock is designed to remove visual sponsors, not audio content
-        # In audio-only mode, FFmpeg merge fails due to missing video stream for SponsorBlock processing
-        # Solution: Disable SponsorBlock in audio mode
-        if 'sponsorblock_remove' in opts:
-            print("[WARNING] SponsorBlock disabled in audio-only mode (visual feature only)")
-            del opts['sponsorblock_remove']
     else:
         fmt = args.format or 'mp4'
         quality = args.quality
@@ -142,6 +135,18 @@ def run_cli(args):
         # Critical merge settings
         opts['prefer_ffmpeg'] = True
         opts['postprocessor_args'] = ['-c:v', 'copy', '-c:a', 'aac', '-loglevel', 'verbose']
+    
+    # Handle SponsorBlock (works in both audio and video modes)
+    if args.sponsor:
+        if args.audio:
+            # Audio mode: mark for video-first workflow
+            opts['sponsorblock_remove'] = 'all'
+            opts['sponsorblock_audio_workaround'] = True
+            cli_log("[SPONSOR] SponsorBlock requested with audio extraction — engine will use video-first workflow")
+        else:
+            # Video mode: direct removal
+            opts['sponsorblock_remove'] = 'all'
+            cli_log("[SPONSOR] SponsorBlock enabled - removing sponsor segments")
     
     # Add postprocessors
     if 'postprocessors' not in opts:

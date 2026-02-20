@@ -257,20 +257,28 @@ Certain combinations of download options can create processing conflicts. This t
 
 | Mode | With Sponsor Block | With Subtitles | With Metadata | Issue | Resolution |
 |------|-------------------|----------------|---------------|-------|-----------|
-| **Audio Only** | ❌ Disabled | ✅ Allowed | ✅ Allowed | Sponsor Block is visual-only; conflicts with audio extraction | Auto-disables Sponsor Block in audio mode |
-| **Audio + SponsorBlock** | ❌ Force Skip | ✅ Allowed | ✅ Allowed | Audio extraction + SponsorBlock merging confusion | Audio mode ignores SponsorBlock setting; recommend video mode if segment removal needed |
+| **Audio Only** | ⚠️ Video-First | ✅ Allowed | ✅ Allowed | SponsorBlock is visual-only; requires video processing first | Auto-triggers video-first workflow: downloads video with sponsors removed, then extracts audio |
+| **Audio + SponsorBlock** | ⚠️ Video-First | ✅ Allowed | ✅ Allowed | SponsorBlock segments removed from video before audio extraction | Automatic video-first workflow seamlessly handles this |
 | **Video Only** | ✅ Allowed | ✅ Allowed | ✅ Allowed | Video merging (video+audio) with SponsorBlock works correctly | No special handling needed |
 | **Video + SponsorBlock** | ✅ Allowed | ✅ Allowed | ✅ Allowed | SponsorBlock removes segments, then merges audio | Processing order: SponsorBlock → Merge Streams → Metadata |
 | **SponsorBlock Only** | ✅ Default | ✅ Allowed | ✅ Allowed | Requires video mode to identify visual segments | Recommended: Use Video mode for best results |
 
 ### Edge Case Details
 
-#### Audio Mode + SponsorBlock
-- **Problem**: SponsorBlock is designed to remove *visual* sponsor segments in videos. In audio-only mode, there's no video stream to process, and FFmpeg merging fails.
-- **Error**: `ERROR: audio conversion failed: Exiting with exit code -22`
-- **Implementation**: Audio mode **automatically disables** SponsorBlock even if user enables it
-- **User Impact**: Users won't see SponsorBlock checkbox effect in audio mode
-- **Recommendation**: For sponsor removal during audio extraction, use Video mode first, then extract audio
+#### Audio Mode + SponsorBlock (Video-First Workflow)
+- **Problem**: SponsorBlock is designed to remove *visual* sponsor segments in videos. In audio-only mode, there's no video stream to process.
+- **Solution**: **Automatic Video-First Workflow** - Engine detects this combination and:
+  1. Downloads the complete video with SponsorBlock applied (sponsors removed)
+  2. Merges audio and video streams
+  3. Extracts audio to requested format (mp3, m4a, etc.)
+  4. Cleans up temporary files
+- **User Experience**: Completely transparent - user requests audio with sponsor removal and gets the result without manual intervention
+- **Performance Impact**: Slightly longer processing time (video download + audio extraction overhead) but still fast
+- **Logging**: User sees `[AUDIO-FLOW]` messages showing video-first workflow in action:
+  ```
+  [AUDIO-FLOW] SponsorBlock requested with audio extraction — using video-first workflow
+  [AUDIO-FLOW] Extracted audio to output_file.mp3
+  ```
 
 #### Video Mode + High Quality + SponsorBlock
 - **Problem**: Large files with SponsorBlock can take longer due to segment removal processing

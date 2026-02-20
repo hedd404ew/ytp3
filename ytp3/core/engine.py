@@ -5,6 +5,8 @@ import random
 import traceback
 import logging
 import re
+import os
+import subprocess
 from io import StringIO
 from .strategies import DownloadStrategy
 
@@ -219,14 +221,91 @@ class YTP3Engine:
 
                     current_opts['progress_hooks'] = [progress_hook]
                     
-                    with yt_dlp.YoutubeDL(current_opts) as ydl:
-                        self.log(f"[YT-DLP] Downloading with format: {fmt}")
-                        ydl.download([url])
-                        success = True
-                    
-                    self.log(f"[SUCCESS] Download completed with {strategy['name']} strategy, format L{fallback_idx}")
-                    if progress_callback:
-                        progress_callback(100.0, "[DONE] Download successful!")
+                    # Detect audio-extraction + SponsorBlock conflict
+                    postpps = current_opts.get('postprocessors', []) or []
+                    is_audio_extract = any(pp.get('key') == 'FFmpegExtractAudio' for pp in postpps if isinstance(pp, dict))
+                    sponsorblock_active = bool(current_opts.get('sponsorblock_remove'))
+
+                    if is_audio_extract and sponsorblock_active:
+                        # Video-first workflow: download video with SponsorBlock applied, then extract audio from the resulting file
+                        self.log("[AUDIO-FLOW] SponsorBlock requested with audio extraction — using video-first workflow")
+
+                        # Prepare video download options
+                        video_opts = current_opts.copy()
+                        # Remove audio-extraction postprocessor to keep video processing only
+                        v_pp = [pp for pp in video_opts.get('postprocessors', []) if not (isinstance(pp, dict) and pp.get('key') == 'FFmpegExtractAudio')]
+                        video_opts['postprocessors'] = v_pp
+                        # Force combined download and merging
+                        video_opts['format'] = 'bestvideo+bestaudio/best'
+                        video_opts['prefer_ffmpeg'] = True
+                        video_opts['merge_output_format'] = video_opts.get('merge_output_format', 'mp4')
+                        # Ensure we keep the merged video for subsequent audio extraction
+                        video_opts['keep_video'] = True
+
+                        with yt_dlp.YoutubeDL(video_opts) as ydl:
+                            self.log(f"[YT-DLP] (video-first) Downloading with format: {video_opts['format']}")
+                            info = ydl.extract_info(url, download=True)
+
+                            # Try to determine output filename
+                            try:
+                                out_filename = ydl.prepare_filename(info)
+                            except Exception:
+                                out_filename = None
+
+                        # If we have an output file, run FFmpeg to extract audio
+                        if out_filename and os.path.exists(out_filename):
+                            # Find desired codec from original postprocessor
+                            target_pp = next((pp for pp in postpps if isinstance(pp, dict) and pp.get('key') == 'FFmpegExtractAudio'), None)
+                            preferredcodec = 'mp3'
+                            if target_pp:
+                                preferredcodec = target_pp.get('preferredcodec', 'mp3')
+
+                            codec_map = {
+                                'mp3': 'libmp3lame',
+                                'wav': 'pcm_s16le',
+                                'm4a': 'aac',
+                                'aac': 'aac',
+                                'opus': 'libopus',
+                                'vorbis': 'libvorbis',
+                            }
+                            ff_codec = codec_map.get(preferredcodec.lower(), preferredcodec)
+
+                            # Build output filename
+                            base, _ext = os.path.splitext(out_filename)
+                            out_audio = f"{base}.{preferredcodec}"
+
+                            ff_cmd = [
+                                'ffmpeg', '-y', '-i', out_filename,
+                                '-vn',
+                                '-c:a', ff_codec,
+                                out_audio
+                            ]
+
+                            try:
+                                subprocess.run(ff_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                self.log(f"[AUDIO-FLOW] Extracted audio to {out_audio}")
+                                success = True
+                                if progress_callback:
+                                    progress_callback(100.0, "[DONE] Audio extraction successful via video-first workflow")
+                            except Exception as ex:
+                                last_error = str(ex)
+                                self.log(f"[AUDIO-FLOW-ERROR] FFmpeg extraction failed: {last_error}")
+                                # allow fallback to next format/strategy
+                                success = False
+                                continue
+                        else:
+                            last_error = "Could not determine merged video filename for audio extraction."
+                            self.log(f"[AUDIO-FLOW-ERROR] {last_error}")
+                            continue
+                    else:
+                        with yt_dlp.YoutubeDL(current_opts) as ydl:
+                            self.log(f"[YT-DLP] Downloading with format: {fmt}")
+                            ydl.download([url])
+                            success = True
+
+                        self.log(f"[SUCCESS] Download completed with {strategy['name']} strategy, format L{fallback_idx}")
+                        if progress_callback:
+                            progress_callback(100.0, "[DONE] Download successful!")
                     
                 except Exception as e:
                     last_error = str(e)
