@@ -65,9 +65,9 @@ ytp3 "https://www.youtube.com/watch?v=VIDEO_ID"
 
 ## Important Notes
 
-### Audio Issues (v1.2+)
+### Audio Issues
 
-Videos should now always include audio thanks to the 5-layer fallback system. If you still encounter issues:
+Videos should always include audio thanks to the 5-layer fallback system. If you still encounter issues:
 
 1. Check the Log tab (GUI) or console output (CLI) for `[ATTEMPT X]` messages
 2. Notice which layer succeeded (L1-L5)
@@ -89,7 +89,7 @@ Videos should now always include audio thanks to the 5-layer fallback system. If
 - **CLI**: Console shows similar logging with configuration details
 - Each video shows individual status in the queue
 
-### Understanding Log Tags and Postprocessor Recovery (v1.2+)
+### Understanding Log Tags and Download Tracking
 
 **Common log messages you'll see**:
 
@@ -110,7 +110,7 @@ Downloads are marked `[SUCCESS]` when:
 2. ✅ Output file is created and playable
 3. ✅ Metadata is embedded (title, description, etc.)
 
-Thumbnails are **NOT** embedded in v1.3+ to ensure reliable downloads. Video quality and metadata reliability are prioritized over optional thumbnails.
+Thumbnails are not embedded to ensure reliable downloads. Video quality and metadata reliability are prioritized over optional thumbnails.
 
 **Example successful download**:
 ```

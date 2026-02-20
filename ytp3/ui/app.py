@@ -519,34 +519,50 @@ class YTP3App(ctk.CTk):
         self.log("")
         
         if self.mode_var.get() == "Audio":
+            # Audio extraction with codec selection
+            audio_codec_map = {
+                'mp3': 'libmp3lame',
+                'wav': 'pcm_s16le',
+                'm4a': 'aac',
+                'aac': 'aac',
+                'opus': 'libopus',
+                'vorbis': 'libvorbis',
+            }
+            
+            fmt = self.fmt_var.get()
+            preferred_codec = audio_codec_map.get(fmt.lower(), fmt)
+            
             opts.update({
                 'format': 'bestaudio/best',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
-                    'preferredcodec': self.fmt_var.get()
-                }]
+                    'preferredcodec': fmt,
+                    'preferredquality': '192' if fmt.lower() in ['mp3', 'vorbis', 'opus', 'aac'] else 'best',
+                    'nopostoverwrites': False,
+                }],
+                'postprocessor_args': ['-q:a', '0', '-threads', '4'],
+                'keep_video': False,
             })
-            self.log("[AUDIO] Audio-only mode enabled")
+            self.log("[AUDIO] Audio-only mode enabled with enhanced codec support")
         else:
             # Video mode - let engine handle format selection with fallbacks
             opts.update({
                 'format': 'bestvideo+bestaudio/best',
                 'merge_output_format': self.fmt_var.get(),
             })
-            self.log(f"[VIDEO] Video+Audio mode with 5-layer fallback enabled")
+            self.log(f"[VIDEO] Video+Audio mode with fallback enabled")
         
         # Initialize postprocessors
         if 'postprocessors' not in opts:
             opts['postprocessors'] = []
         
-        # NOTE: Thumbnail embedding disabled due to compatibility issues (exit code -22)
-        # Users will get video with audio and metadata instead
+        # Thumbnail embedding disabled to ensure reliable downloads
         
         # Add metadata (but allow failures)
         if self.chk_meta.get():
             opts['postprocessors'].append({
                 'key': 'FFmpegMetadata',
-                'add_chapters': False  # Disable chapter adding to reduce complexity
+                'add_chapters': False
             })
         
         max_workers = int(self.conc_slider.get())

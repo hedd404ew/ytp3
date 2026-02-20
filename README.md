@@ -218,7 +218,7 @@ Automatic post-processing with FFmpeg:
 ### Common Issues
 
 **"Videos downloaded without audio"**
-- This is now handled by the 5-layer fallback system (v1.2+)
+- This is handled by the 5-layer fallback system
 - The engine automatically tries different format combinations
 - Check Log tab in GUI to see which [ATTEMPT X] succeeded
 - Watch for [FAILED] entries to see what was tried
@@ -288,13 +288,12 @@ The engine now includes verbose FFmpeg logging:
 - Merge operations
 - Check Log tab for `[YT-DLP]` and `[POST-PROCESSING]` messages
 
-### Postprocessor & Metadata Handling (v1.3+)
+### Postprocessor & Metadata Handling
 
-**What changed**:
-- Thumbnail embedding disabled to prevent compatibility issues
-- Downloads focus on audio/video quality and metadata stability
+**What happens**:
+- Metadata embedding (title, description, duration, etc.) is automatically applied
+- Audio/video quality is never affected by postprocessor failures
 - Robust FFmpeg error handling with detailed logging
-- Video quality never affected by postprocessor failures
 
 **Available Postprocessors**:
 - FFmpeg metadata embedding (title, description, duration, etc.)
@@ -316,7 +315,7 @@ python ytp3_main.py --no-meta "URL"
 | `ERROR: Unable to embed using ffprobe` | Missing ffmpeg tools | Reinstall FFmpeg: verify with `ffmpeg -version` |
 | `[FAILED Ln] Standard: ...` | Download format not available | Try lower quality: `-q medium` or `-q low` |
 
-**5-Layer Fallback Strategy (v1.3+)**:
+**5-Layer Fallback Strategy**:
 1. **L1**: Best quality with merged audio/video
 2. **L2**: Auto-select best available video+audio combo
 3. **L3**: Capped to 1080p maximum resolution
@@ -325,15 +324,60 @@ python ytp3_main.py --no-meta "URL"
 
 If L1 format fails, system automatically tries L2, then L3, etc. You always get a working download.
 
+## Testing
+
+YTP3 includes a comprehensive test suite covering core functionality. Tests are located in the `tests/` directory.
+
+### Running Tests
+
+```bash
+# Install test dependencies
+pip install pytest pytest-cov
+
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage report
+pytest tests/ --cov=ytp3 --cov-report=html
+
+# Run specific test module
+pytest tests/test_core/test_engine.py -v
+```
+
+### Test Coverage
+
+The test suite includes:
+- ✅ Engine initialization and format fallback logic
+- ✅ Strategy retrieval and validation
+- ✅ Configuration save/load roundtrips
+- ✅ System diagnostics and path management
+- ✅ CLI argument parsing (all flags and options)
+- ✅ Error handling and recovery paths
+
+### Test Structure
+
+```
+tests/
+├── test_core/           # Engine and strategy tests
+├── test_utils/          # Configuration and system tests
+├── test_cli.py          # CLI interface tests
+├── test_ui/             # UI component tests
+├── conftest.py          # Pytest fixtures and configuration
+└── README.md            # Detailed testing documentation
+```
+
+For detailed testing info, see [tests/README.md](tests/README.md).
+
 ## Contributing
 
 Contributions are welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+3. **Write tests for new features** (see [tests/README.md](tests/README.md))
+4. Commit changes (`git commit -m 'Add AmazingFeature'`)
+5. Push to branch (`git push origin feature/AmazingFeature`)
+6. Open a Pull Request
 
 ## Legal Notice
 

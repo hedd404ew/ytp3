@@ -12,9 +12,18 @@ import datetime
 class ConfigManager:
     """Manages application configuration and persistence."""
     
-    def __init__(self):
-        """Initialize config manager."""
-        self.config_file = self._detect_config_file()
+    def __init__(self, config_file=None):
+        """
+        Initialize config manager.
+        
+        Args:
+            config_file (str, optional): Path to config file. If not provided, 
+                                        will auto-detect or use default location.
+        """
+        if config_file:
+            self.config_file = config_file
+        else:
+            self.config_file = self._detect_config_file()
         self.data = self._get_defaults()
 
     def _get_defaults(self):

@@ -75,31 +75,36 @@ Centralized configuration with:
 
 ## Testing
 
-Create tests in `tests/` following naming convention:
-```
-tests/
-├── test_core/
-│   ├── test_engine.py
-│   └── test_strategies.py
-├── test_ui/
-│   └── test_components.py
-└── test_utils/
-    └── test_config.py
+Create tests in `tests/` following naming convention. YTP3 uses **pytest** for the comprehensive test suite.
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run specific test module
+pytest tests/test_core/test_engine.py -v
+
+# Run with coverage report
+pytest tests/ --cov=ytp3 --cov-report=html
 ```
 
-Example test:
+### Example Test
+
 ```python
-import unittest
+import pytest
 from ytp3.core.engine import YTP3Engine
 
-class TestYTP3Engine(unittest.TestCase):
-    def setUp(self):
-        self.engine = YTP3Engine({}, {})
+def test_strategy_retrieval(self, sample_opts, sample_caps):
+    """Test that engine has strategies available."""
+    engine = YTP3Engine(sample_opts, sample_caps)
     
-    def test_strategy_retrieval(self):
-        strategies = self.engine.strategies
-        self.assertGreater(len(strategies), 0)
+    assert len(engine.strategies) > 0
+    assert all('name' in s and 'extra' in s for s in engine.strategies)
 ```
+
+For detailed testing documentation and running instructions, see [tests/README.md](tests/README.md).
 
 ## Performance Considerations
 
@@ -121,9 +126,9 @@ class TestYTP3Engine(unittest.TestCase):
 
 **Root Cause**: When yt-dlp selects `bestvideo+bestaudio`, separate video and audio streams need to be merged using FFmpeg. Without proper postprocessor configuration, videos may contain only the video stream.
 
-**5-Layer Degradation Fallback System** (v1.2+):
+**5-Layer Degradation Fallback System**:
 
-The engine now uses a comprehensive fallback strategy with 5 layers:
+The engine uses a comprehensive fallback strategy with 5 layers:
 
 1. **Layer 1**: `bestvideo[ext=mp4]+bestaudio[ext=m4a]` - Prefer containerized formats
 2. **Layer 2**: `bestvideo+bestaudio/best` - Auto-select and merge
@@ -155,35 +160,39 @@ Each format is tried with each download strategy (Standard, Android, iOS, TV byp
    ffmpeg -codecs | grep aac
    ```
 
-### Issue: Thumbnail embedding fails (exit code -22)
+### Issue: Audio extraction fails (exit code -22)
 
-**Root Cause** (Fixed in v1.3): FFmpeg and mutagen consistently fail to embed webp thumbnails in mp4 containers due to format compatibility issues.
+**Root Cause**: FFmpeg audio codec incompatibility or missing codec libraries.
 
-**Previous Error Messages**:
+**Error Messages**:
 ```
-ERROR: Unable to embed using ffprobe & ffmpeg; Exiting with exit code -22
-WARNING: unable to embed using mutagen; incompatible image type: webp
+ERROR: Post-processing failed: exit code -22
+ERROR: audio conversion failed: Exiting with exit code -22
 ```
 
-**Solution Implemented** (v1.3+):
+**Solutions**:
 
-Thumbnail embedding has been **disabled completely** to eliminate this source of download failures. This decision was made because:
+1. **Check FFmpeg Audio Codecs**:
+   ```bash
+   ffmpeg -codecs | grep -E "libmp3lame|aac|opus|vorbis"
+   ```
 
-1. **Root cause is fundamental**: webp→mp4 embedding fails across FFmpeg versions
-2. **Workarounds cause complexity**: thumbnail conversion added significant code without solving the core issue
-3. **Videos are usable without thumbnails**: Core functionality (video+audio) works perfectly
-4. **Focus on reliability**: Downloads succeed reliably even if thumbnails are skipped
+2. **Use Alternative Audio Format**:
+   - Try WAV format (uncompressed, no codec issues)
+   - Use M4A instead of MP3
+   - Use OPUS or VORBIS if available
 
-**New Behavior**:
-- All downloads embed metadata (title, description, duration, artist, etc.)
-- Thumbnail embedding is entirely skipped
-- Videos always contain proper audio+video merged streams
-- No more `exit code -22` or mutagen compatibility errors
+3. **Verify FFmpeg Installation**:
+   ```bash
+   ffmpeg -version
+   ffmpeg -decoders | grep audio
+   ```
 
-**If you previously needed thumbnails**:
-- You can extract them separately using FFmpeg after download
-- Most video players (VLC, Windows Media Player, etc.) don't display embedded thumbnails anyway
-- The focus is now on download reliability over metadata richness
+4. **Try Quality Selection**:
+   ```bash
+   python ytp3_main.py -a -f wav "URL"
+   python ytp3_main.py -a -f m4a "URL"
+   ```
 
 ### Issue: Metadata embedding failures
 
@@ -195,7 +204,7 @@ Thumbnail embedding has been **disabled completely** to eliminate this source of
 ERROR: Post-processing failed
 ```
 
-**Solutions** (v1.2+):
+**Solutions**:
 
 1. **Automatic Retry** (Enabled by default):
    - If metadata embedding fails, video is still usable
@@ -224,7 +233,7 @@ WARNING: [youtube] [jsc] Remote components challenge solver script (deno)...
 WARNING: [youtube] [...]: n challenge solving failed: Some formats may be missing...
 ```
 
-**Solutions** (v1.2+):
+**Solutions**:
 
 1. **Install Deno** (Recommended):
    ```bash
@@ -234,38 +243,41 @@ WARNING: [youtube] [...]: n challenge solving failed: Some formats may be missin
    # Or download from https://deno.land
    ```
 
-2. **Use CLI Option** (if deno installed):
-   ```bash
-   python ytp3_main.py --remote-components ejs:github "URL"
-   ```
+2. **Use Fallback Strategies**:
+   - Use Android/iOS bypass strategies which may avoid challenges
+   - Warnings don't prevent download in most cases
 
-3. **Ignore Warnings**: 
+3. **Accept and Continue**: 
    - Downloads usually still work despite warnings
-   - Use fallback strategies (Android, iOS) which may avoid challenges
-   - Warnings don't prevent download
+   - Focus on alternative strategies if needed
 
-## Comprehensive Error Handling (v1.2+)
+## Comprehensive Error Handling
 
 ### Error Detection & Recovery
 
 The engine now:
 - ✅ Detects FFmpeg exit codes (e.g., -22)
-- ✅ Catches postprocessor failures (metadata, thumbnail)
-- ✅ Automatically retries without failing postprocessors
-- ✅ Converts webp/png thumbnails to jpg
-- ✅ Continues download even if metadata fails
+- ✅ Catches postprocessor failures (metadata, audio extraction)
+- ✅ Automatically retries with fallback formats
+- ✅ Continues download even if postprocessing fails
 - ✅ Tracks all errors in detailed logs
+- ✅ Supports multiple audio codec fallbacks (MP3, WAV, M4A, OPUS, VORBIS)
 
 ### Log Output Examples
 
-**Successful with postprocessor fallback**:
+**Successful download with fallback**:
 ```
 [ATTEMPT 1] L1: Best quality with merged audio
 [YT-DLP] Downloading with format: bestvideo[ext=mp4]+bestaudio[ext=m4a]
 [DOWNLOADING] 2.5MB/s | ETA: 2:30
-[WARNING] Postprocessor error detected: exit code -22
-[RETRY] Attempting download without problematic postprocessors...
-[SUCCESS] Download completed (without thumbnails/metadata)
+[SUCCESS] Download completed
+```
+
+**Audio extraction with fallback**:
+```
+[AUDIO] Attempting MP3 extraction
+[WARNING] MP3 extraction failed, trying WAV
+[SUCCESS] Audio extracted as WAV
 ```
 
 **Failed attempt, retrying**:
@@ -276,15 +288,94 @@ The engine now:
 [SUCCESS] Download completed with Standard strategy, format L2
 ```
 
-## Future Improvements
+## Testing
 
-- [ ] Plugin system for custom strategies
-- [ ] Database for download history
-- [ ] Scheduled downloads
-- [ ] Batch processing templates
-- [ ] Advanced filtering/search
-- [ ] Network proxy support
-- [ ] Database-backed configuration
-- [ ] Custom retry configuration UI
-- [ ] Download speed optimization
-- [ ] Subtitle language selection
+### Running Tests
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific test module
+python -m pytest tests/test_core/test_engine.py -v
+
+# Run with coverage report
+python -m pytest tests/ --cov=ytp3 --cov-report=html
+```
+
+### Test Structure
+
+```
+tests/
+├── test_core/
+│   ├── __init__.py
+│   ├── test_engine.py        # Engine initialization and format fallback tests
+│   └── test_strategies.py    # Strategy retrieval and validation tests
+├── test_ui/
+│   ├── __init__.py
+│   └── test_components.py    # UI component tests
+├── test_utils/
+│   ├── __init__.py
+│   ├── test_config.py        # Configuration management tests
+│   └── test_system.py        # System diagnostics tests
+├── test_cli.py               # CLI argument parsing and execution tests
+└── conftest.py               # Pytest configuration and fixtures
+```
+
+### Test Coverage
+
+The test suite covers:
+- ✅ Engine initialization with various configurations
+- ✅ Format fallback strategy selection and ordering
+- ✅ Strategy retrieval and validation
+- ✅ Configuration loading and saving
+- ✅ System capability detection
+- ✅ CLI argument parsing
+- ✅ Error handling and recovery paths
+
+## Architecture & Dependencies
+
+### Design Philosophy
+
+YTP3 is built around **yt-dlp as a base library**, not as a forked project. This means:
+
+1. **External Dependency**: yt-dlp is used as-is from PyPI
+2. **No Modifications**: We don't fork or modify yt-dlp source code
+3. **Abstraction Layer**: Our engine wraps yt-dlp with:
+   - Fallback strategies for format selection
+   - Error recovery mechanisms
+   - Custom postprocessor handling
+   - Comprehensive logging and progress tracking
+
+### Why Depend on yt-dlp?
+
+yt-dlp provides:
+- ✅ Robust YouTube data extraction and format detection
+- ✅ Extensive format filtering and selection
+- ✅ Multiple bypass strategies (Android, iOS, TV clients)
+- ✅ FFmpeg integration for postprocessing
+- ✅ Cookie and authentication handling
+- ✅ Subtitle downloading and embedding
+- ✅ Metadata extraction and embedding
+
+Our role is to provide:
+- ✅ Smart format fallback when extraction fails
+- ✅ User-friendly GUI and CLI interfaces
+- ✅ Configuration management across platforms
+- ✅ Enhanced error messages and recovery suggestions
+- ✅ Multi-threaded download management
+
+### Feature Dependency on yt-dlp
+
+Many features depend directly on yt-dlp's capabilities:
+
+| Feature | How It Works | Status |
+|---------|-------------|--------|
+| Custom proxy support | Passed to yt-dlp via options | Already supported |
+| Subtitle language selection | yt-dlp `--sub-langs` option | Already supported |
+| Cookie handling | yt-dlp authentication features | Already supported |
+| Format selection | yt-dlp format filtering | Already supported |
+| Metadata embedding | yt-dlp postprocessors | Already supported |
+
+**Note**: Most advanced features should leverage yt-dlp's configuration options passed through our configuration system, rather than implementing custom code in YTP3.
+

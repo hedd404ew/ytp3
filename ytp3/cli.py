@@ -94,12 +94,29 @@ def run_cli(args):
     if args.audio:
         fmt = args.format or 'mp3'
         print(f"[AUDIO] Mode ({fmt})")
+        
+        # Audio extraction with codec selection
+        audio_codec_map = {
+            'mp3': 'libmp3lame',
+            'wav': 'pcm_s16le',
+            'm4a': 'aac',
+            'aac': 'aac',
+            'opus': 'libopus',
+            'vorbis': 'libvorbis',
+        }
+        
+        preferred_codec = audio_codec_map.get(fmt.lower(), fmt)
+        
         opts.update({
             'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
-                'preferredcodec': fmt
-            }]
+                'preferredcodec': fmt,
+                'preferredquality': '192' if fmt.lower() in ['mp3', 'vorbis', 'opus', 'aac'] else 'best',
+                'nopostoverwrites': False,
+            }],
+            'postprocessor_args': ['-q:a', '0', '-threads', '4'],
+            'keep_video': False,
         })
     else:
         fmt = args.format or 'mp4'
@@ -122,14 +139,13 @@ def run_cli(args):
     if 'postprocessors' not in opts:
         opts['postprocessors'] = []
     
-    # NOTE: Thumbnail embedding disabled due to compatibility issues (exit code -22)
-    # Users will get video with audio and metadata instead
+    # Thumbnail embedding disabled to ensure reliable downloads
     
     # Add metadata (but allow failures)
     if not args.no_meta:
         opts['postprocessors'].append({
             'key': 'FFmpegMetadata',
-            'add_chapters': False  # Disable chapter adding to reduce complexity
+            'add_chapters': False
         })
     
     # Download

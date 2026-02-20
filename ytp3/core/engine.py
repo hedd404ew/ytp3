@@ -248,6 +248,13 @@ class YTP3Engine:
                         self.last_detailed_error = "Cookie file is invalid or corrupt. Must be Netscape format."
                         raise Exception(self.last_detailed_error)
                     
+                    # Handle audio extraction failures
+                    if "exit code -22" in str(e) or "audio conversion failed" in str(e).lower():
+                        self.log(f"[AUDIO-ERROR] FFmpeg audio conversion failed")
+                        self.log(f"[AUDIO-FIX] Try alternative format: -f wav or -f m4a")
+                        # Continue to next strategy which may have different audio handling
+                        continue
+                    
                     # Continue to next fallback format
         
         if not success:
